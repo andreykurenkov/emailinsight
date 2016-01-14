@@ -2,7 +2,6 @@ import heatmap
 import random
 import os
 
-
 for fileName in os.listdir("."):
 	fileNameParts = fileName.split(" ")
 	if fileNameParts[0]=='Confusion':

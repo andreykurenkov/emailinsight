@@ -4,7 +4,7 @@ import re
 
 class parsedEmail():
 
-    def __init__(self,label,subject,sender,fromDomain,timeRec,words):
+    def __init__(self,label,subject,sender,fromDomain,timeRec,content,words=None):
         self.label = label
         self.subject = subject
         self.sender = sender
@@ -14,9 +14,10 @@ class parsedEmail():
         self.month = timeRec[2]
         self.year = timeRec[3]
         self.hour = timeRec[4]
+        self.content = content
         self.words = words
 
-evilSubstringsRegex = ['<html>.*</html',\
+evilSubstringsRegex = ['<html>.*</html>',\
                        '=20(.*\n)*=20',\
                        '\<.*\>',\
                         '\>.*\n',\
@@ -38,19 +39,38 @@ def parseEmails(folder,printInfo=True):
     for aFile in files:
         if os.path.isdir(aFile):
             emails += parseEmails(folder+'/'+aFile)
-        elif '.mbox' in aFile:
-            category = (folder+'-'+aFile[:aFile.index('.')])[2:]
-            if printInfo:
-                print 'Parsing %s'%category
+        elif aFile.endswith('.mbox'):
             box = mailbox.mbox(folder+'/'+aFile)
+            count = 0
+            if printInfo:
+                print 'Parsing %s'%aFile
             for message in box:
+		if message['X-Gmail-Labels'] is None:
+		    continue
+	        labels = message['X-Gmail-Labels'].split(',')
+		if 'Chat' in labels:
+		    continue
+	        if len(labels)>1 and 'Important' in labels:
+	            labels.remove('Important')
+	        if len(labels)>1 and 'Sent' in labels:
+	            labels.remove('Sent')
+	        if len(labels)>1 and 'Financial' in labels:
+	            labels.remove('Financial')
+	        if len(labels)>1 and 'Starred' in labels:
+	            labels.remove('Starred')
+                category = labels[0]
                 subject = message['subject']
-                sender = re.sub('[\-=|;\"\>\<\'\)\(,.?!\n\r\t]','',message['from'])
+		try:
+                    sender = re.sub('[\-=|;\"\>\<\'\)\(,.?!\n\r\t]','',message['from'])
+		except:
+		    continue
                 if '@' not in message['from']:
                     continue
                 senderDomain = sender[sender.index('@'):]
                 
                 date = message['Date']
+		if date is None:
+		    continue
                 dateParts = date.split(" ")
                 dateParts[0] = dateParts[0][:-1]
                 dateParts[4] = dateParts[4][:2]
@@ -76,48 +96,55 @@ def parseEmails(folder,printInfo=True):
                     word = re.sub('[|;\"\'\>\<\'\)\(,.?!\n]','',word)
                     if len(word)>3:
                         addToCountDict(word,wordCount)
-                
+	        count+=1
                 email = parsedEmail(category,subject,sender,senderDomain,\
-                                                     dateParts,wordCount)
+                                        dateParts,messageContent,wordCount)
                 emails.append(email)
             if printInfo:
-                print 'Parsed %d emails\n'%len(box)
+                print 'Parsed %d emails\n'%count
     return emails
 
 def getEmailStats(emails):
     fromCount = {}
     domainCount = {}
-    totalWordsCount = {}
+    totalWordsCounts = {}
     labels = []
     for email in emails:
         addToCountDict(email.sender,fromCount)
         addToCountDict(email.fromDomain,domainCount)
         if email.label not in labels:
-            totalWordsCount[email.label] = {}
+            totalWordsCounts[email.label] = {}
             labels.append(email.label)
-    
-        words = email.words
-        for word in words.keys():
-            if word not in totalWordsCount and word not in labels:
-                totalWordsCount[word]=0
-            if word not in totalWordsCount[email.label]:
-                totalWordsCount[email.label][word]=0
-            totalWordsCount[word]+=words[word]
-            totalWordsCount[email.label][word]+=words[word]
-    return (totalWordsCount,fromCount,domainCount,labels)
 
-def getTopEmailCounts(emails,percentThresh=0.25,numWords=50,numSenders=20,numDomains=5):
+        words = email.words
+        for word in words:
+            if word not in totalWordsCounts and word not in labels:
+                totalWordsCounts[word]=0
+            if word not in totalWordsCounts[email.label]:
+                totalWordsCounts[email.label][word]=0
+            if word not in labels:
+                totalWordsCounts[word]+=words[word]
+            totalWordsCounts[email.label][word]+=words[word]
+    return (totalWordsCounts,fromCount,domainCount,labels)
+
+def getTopEmailCounts(emails,percentThresh=0.25,numWords=50,numSenders=20,numDomains=5,perLabel=False):
     (totalWordsCount,fromCount,domainCount,labels) = getEmailStats(emails)
     topWords = set([])
-    for label in labels:
-        labelWords = totalWordsCount[label]
-        topWordsDict = {}
-        for word in labelWords:
-            if word not in labels and labelWords[word]>totalWordsCount[word]*percentThresh:
-                topWordsDict[word] = labelWords[word]
-        sortedWords = sorted(topWordsDict,key=topWordsDict.get,reverse=True)
-        for i in range(min(numWords,len(sortedWords))):
-            topWords.add(sortedWords[i])
+    if perLabel:
+	for label in labels:
+            labelWords = totalWordsCount[label]
+            topWordsDict = {}
+            for word in labelWords:
+                if word not in labels and labelWords[word]>totalWordsCount[word]*percentThresh:
+                    topWordsDict[word] = labelWords[word]
+            sortedWords = sorted(topWordsDict,key=topWordsDict.get,reverse=True)
+            for i in range(min(numWords,len(sortedWords))):
+                topWords.add(sortedWords[i])
+    else:
+        for label in labels:
+	    del totalWordsCount[label]
+        sortedWords = sorted(totalWordsCount,key=totalWordsCount.get,reverse=True)
+	topWords = sortedWords[:numWords*len(labels)]
 
     sortedSenders = sorted(fromCount,key=fromCount.get,reverse=True)
     sortedDomains = sorted(domainCount,key=domainCount.get,reverse=True)
@@ -127,11 +154,11 @@ def getTopEmailCounts(emails,percentThresh=0.25,numWords=50,numSenders=20,numDom
     topDomains = sortedDomains if len(sortedDomains)<=numDomains else sortedDomains[:numDomains]
     return (topWords,topSenders,topDomains)
 
-def mboxToBinaryCVS(folder):
-    outputFile = open(folder+'/binaryEmails.csv','w')
+def mboxToBinaryCSV(folder,csvfile='data.csv',perLabel=True):
+    outputFile = open(os.path.join(folder,csvfile),'w')
 
     emails = parseEmails(folder)
-    (topWords,topSenders,topDomains)=getTopEmailCounts(emails)
+    (topWords,topSenders,topDomains)=getTopEmailCounts(emails,perLabel=perLabel)
 
     for sender in topSenders:
         outputFile.write('Sender %s,'%sender)
@@ -140,7 +167,7 @@ def mboxToBinaryCVS(folder):
     for word in topWords:
         outputFile.write('Has %s,'%word)
     outputFile.write('label\n')
-
+    labelMap= {}
     for email in emails:
         for sender in topSenders:
             outputFile.write('1, ' if email.sender==sender else '0,')
@@ -148,13 +175,20 @@ def mboxToBinaryCVS(folder):
             outputFile.write('1, ' if email.fromDomain==domain else '0,')
         for word in topWords:
             outputFile.write('1, ' if word in email.words else '0,')
-        outputFile.write(email.label+'\n')
+	if email.label not in labelMap:
+	    labelMap[email.label] = len(labelMap.keys())
+        outputFile.write(str(labelMap[email.label])+'\n')
+    outputFile.close()
+    outputInfoFile = open(os.path.join(folder,csvfile+' info.txt'),'w')
+    outputInfoFile.write('Num labels: %d'%len(labelMap.keys()))
+    outputInfoFile.write('Label map: %s'%str(labelMap))
+    outputInfoFile.close()
 
-def mboxToCVS(folder, name='email.csv', limitSenders=True, limitDomains=True):
+def mboxToCSV(folder, name='email.csv', limitSenders=True, limitDomains=True,perLabel=False):
     outputFile = open(folder+'/'+name,'w')
 
     emails = parseEmails(folder)
-    (topWords,topSenders,topDomains)=getTopEmailCounts(emails)
+    (topWords,topSenders,topDomains)=getTopEmailCounts(emails,perLabel=perLabel)
     outputFile.write('Sender,Domain,')
     for word in topWords:
         outputFile.write('Has %s,'%word)
@@ -172,6 +206,8 @@ def mboxToCVS(folder, name='email.csv', limitSenders=True, limitDomains=True):
         for word in topWords:
             outputFile.write('Yes,' if word in email.words else 'No,')
         outputFile.write(email.label+'\n')
+    outFile.close()
 
-folder = "."
-mboxToCVS(folder,'limitedEmails.csv')
+if __name__=='__main__':
+    folder = "."
+    mboxToCSV(folder,'limitedEmails.csv')
