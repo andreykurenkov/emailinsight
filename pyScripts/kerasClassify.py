@@ -36,7 +36,7 @@ def get_keras_features(emails,verbose=True,nb_words=5000,skip_top=0,maxlen=None,
     cutoff = int(len(emails)*label_cutoff)
     removed = 0
     for label in labels[:]:
-        if labelCounts[label]<cutoff:
+        if labelCounts[label]<cutoff or label=='Important' or label=='Unread' or label=='Sent':
             removed+=1
             labels.remove(label)
     labelNums = {labels[i]:i for i in range(len(labels))}

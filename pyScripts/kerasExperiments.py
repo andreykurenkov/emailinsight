@@ -1,6 +1,6 @@
 from kerasClassify import *
 from sklearn.dummy import DummyClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression,PassiveAggressiveClassifier
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -89,6 +89,41 @@ def make_plots(xs,ys,labels,title=None,x_name=None,y_name=None,y_bounds=None,sav
         plt.savefig(save_to,bbox_inches='tight')
     plt.hold(False)
 
+def get_baseline_dummy(dataset,train_label_list,test_label_list,verbose=True):
+    (X_train, Y_train), (X_test, Y_test) = dataset
+    dummy = DummyClassifier()
+    dummy.fit(X_train,train_label_list)
+    predictions = dummy.predict(X_test)
+    accuracy = accuracy_score(test_label_list,predictions)
+    
+    if verbose:
+        print('Got baseline of %f with dummy classifier'%accuracy)
+
+    return accuracy
+
+def get_baseline_knn(dataset,train_label_list,test_label_list,verbose=True):
+    (X_train, Y_train), (X_test, Y_test) = dataset
+    knn = KNeighborsClassifier(n_neighbors=100,n_jobs=-1)
+    knn.fit(X_train,train_label_list)
+    predictions = np.round(knn.predict(X_test))
+    accuracy = accuracy_score(test_label_list,predictions)
+
+    if verbose:
+        print('Got baseline of %f with linear regression '%accuracy)
+
+    return accuracy
+
+def get_baseline_PA(dataset,train_label_list,test_label_list,verbose=True):
+    (X_train, Y_train), (X_test, Y_test) = dataset
+    classifier = PassiveAggressiveClassifier(n_jobs=-1,fit_intercept=True)
+    classifier.fit(X_train,train_label_list)
+    accuracy = classifier.score(X_test,test_label_list)
+    
+    if verbose:
+        print('Got baseline of %f with Passive Aggressive classifier'%accuracy)
+
+    return accuracy
+
 def run_once(verbose=True,test_split=0.1,ftype='binary',num_words=5000,select_best=4000,num_hidden=512,dropout=0.5, plot=True,plot_prefix='',graph_to=None,extra_layers=0):
     features,labels,feature_names,label_names = get_keras_data(num_words=num_words,matrix_type=ftype,verbose=verbose)
     num_labels = len(label_names)
@@ -108,23 +143,6 @@ def run_once(verbose=True,test_split=0.1,ftype='binary',num_words=5000,select_be
         plot_confusion_matrix(conf, label_names,save_to=plot_prefix+'conf.png')
         plot_confusion_matrix(conf_normalized, label_names, save_to=plot_prefix+'conf_normalized.png',title='Normalized Confusion Matrix')
     return dataset,train_label_list,test_label_list,acc
-
-def get_baseline(dataset,train_label_list,test_label_list,verbose=True):
-    (X_train, Y_train), (X_test, Y_test) = dataset
-    dummy = DummyClassifier()
-    dummy.fit(X_train,train_label_list)
-    predictions = dummy.predict(X_test)
-    dummy_accuracy = accuracy_score(test_label_list,predictions)
-    
-    knn = KNeighborsClassifier(n_neighbors=100,n_jobs=-1)
-    knn.fit(X_train,train_label_list)
-    predictions = np.round(knn.predict(X_test))
-    lr_accuracy = accuracy_score(test_label_list,predictions)
-
-    if verbose:
-        print('Got baseline of %f with dummy and %f with k nearest neighbors'%(dummy_accuracy,lr_accuracy))
-
-    return max(dummy_accuracy,lr_accuracy)
 
 def test_features_words():
     #get emails once to pickle
@@ -154,7 +172,7 @@ def test_features_words():
             print('\nGot acc %f for word count %d in %d seconds'%(acc,word_count,elapsed))
 
             start = time.time()
-            baseline = get_baseline(dataset,train_label_list,test_label_list,verbose=False) 
+            baseline = get_baseline_dummy(dataset,train_label_list,test_label_list,verbose=False) 
             baselines.append(baseline)
             end = time.time()
             belapsed = end-start
@@ -249,4 +267,9 @@ def test_select_words(num_hidden=512):
 #test_select_words(128)
 #test_select_words(32)
 #test_select_words(16)
-run_once(num_words=10000,dropout=0.5,num_hidden=512, extra_layers=0,plot=True,verbose=True,select_best=4000)
+#run_once(num_words=10000,dropout=0.5,num_hidden=512, extra_layers=0,plot=True,verbose=True,select_best=4000)
+features,labels,feature_names,label_names = get_keras_data(num_words=10000,matrix_type='binary',verbose=True)
+num_labels = len(label_names)
+dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=0.1)
+dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
+baseline = get_baseline_PA(dataset,train_label_list,test_label_list,verbose=True) 
