@@ -7,18 +7,21 @@ import pprint
 import cPickle
 
 from keras.callbacks import RemoteMonitor
-from keras.layers.recurrent import LSTM,GRU
 from keras.preprocessing import sequence
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Activation
 from keras.optimizers import SGD, Adam, RMSprop
 from keras.preprocessing.text import Tokenizer
 from keras.layers.embeddings import Embedding
 from keras.utils import np_utils
 from mboxConvert import parseEmails,getEmailStats,mboxToBinaryCSV
 from kerasPlotter import Plotter
+from keras.layers.embeddings import Embedding
+from keras.layers.convolutional import Convolution1D, MaxPooling1D
+from keras.layers.recurrent import LSTM,GRU
+from keras.layers.core import Dense, Dropout, Activation, Flatten
+from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
 
-def get_keras_features(emails,verbose=True,nb_words=5000,skip_top=0,maxlen=None,as_matrix=True, matrix_type='count', label_cutoff=0.01):
+def get_word_features(emails,verbose=True,nb_words=5000,skip_top=0,maxlen=None,as_matrix=True, matrix_type='count', label_cutoff=0.01,max_n=1):
     (totalWordsCount,fromCount,domainCount,labels) = getEmailStats(emails)
     if verbose:
         print('Creating email dataset with labels %s '%str(labels))
@@ -61,16 +64,25 @@ def get_keras_features(emails,verbose=True,nb_words=5000,skip_top=0,maxlen=None,
         texts.append(text.replace('\n','').replace('\r',''))
         emailLabels.append(labelNums[email.label])
     emailLabels = np.array(emailLabels)
-    tokenizer = Tokenizer(nb_words)
-    tokenizer.fit_on_texts(texts)
-    reverse_word_index = {tokenizer.word_index[word]:word for word in tokenizer.word_index}
-    word_list = [reverse_word_index[i+1] for i in range(nb_words)]
-    if as_matrix:
-        feature_matrix = tokenizer.texts_to_matrix(texts, mode=matrix_type)
-        return feature_matrix,emailLabels,word_list,labels
+    if max_n==1 or not as_matrix:
+        tokenizer = Tokenizer(nb_words)
+        tokenizer.fit_on_texts(texts)
+        reverse_word_index = {tokenizer.word_index[word]:word for word in tokenizer.word_index}
+        word_list = [reverse_word_index[i+1] for i in range(nb_words)]
+        if as_matrix:
+            feature_matrix = tokenizer.texts_to_matrix(texts, mode=matrix_type)
+            return feature_matrix,emailLabels,word_list,labels
+        else:
+            sequences = tokenizer.texts_to_sequences(texts)
+            return sequences,emailLabels,word_list,labels
     else:
-        sequences = tokenizer.texts_to_sequences(texts)
-        return sequences,emailLabels,word_list,labels
+        if matrix_type=='tfidf':
+            vectorizer = TfidfVectorizer(ngram_range=(1,max_n),max_features=nb_words)
+        else:
+            vectorizer = CounterVectorizer(ngram_range=(1,max_n),max_features=nb_words,binary=matrix_type=='binary')
+        feature_matrix = vectorizer.fit_transform(texts)
+        word_list = vectorizer.get_feature_names()
+        return feature_matrix,emailLabels,word_list,labels
 
 def write_csv(csvfile, feature_matrix, labels,feature_names=None, verbose=True):
     dataframe = pd.DataFrame(data=feature_matrix,columns=feature_names)
@@ -169,7 +181,7 @@ def get_emails(verbose=True):
             cPickle.dump(emails,store_to)
     return emails
 
-def get_keras_data(num_words=1000,matrix_type='binary',verbose=True):
+def get_ngram_data(num_words=1000,matrix_type='binary',verbose=True,max_n=1):
     #yeah yeah these can be separate functions, but lets just bundle it all up
     csvfile = 'keras_data_%d_%s.csv'%(num_words,str(matrix_type))
     infofile = 'data_info.txt'
@@ -178,9 +190,10 @@ def get_keras_data(num_words=1000,matrix_type='binary',verbose=True):
         label_names = read_info(infofile)
     else:
         emails = get_emails(verbose=verbose)
-        features,labels,feature_names,label_names = get_keras_features(emails,nb_words=num_words,matrix_type=matrix_type,verbose=verbose)
-        write_csv(csvfile,features,labels,feature_names,verbose=verbose)
-        write_info(infofile,label_names)
+        features,labels,feature_names,label_names = get_word_features(emails,nb_words=num_words,matrix_type=matrix_type,verbose=verbose,max_n=max_n)
+        if max_n==1:
+            write_csv(csvfile,features,labels,feature_names,verbose=verbose)
+            write_info(infofile,label_names)
     return features,labels,feature_names,label_names
 
 def get_my_data(per_label=False):
@@ -199,19 +212,24 @@ def get_my_data(per_label=False):
         
 def get_sequence_data():
     txtfile = 'sequence_data.txt'
+    infofile = 'data_info.txt'
     if os.path.isfile(txtfile):
-        features,labels = read_txt(txtfile)
+        features,labels = read_sequences(txtfile)
+        label_names = read_info(infofile)
     else:
         emails = parseEmails('.')
         features,labels,words,labelVals = get_keras_features(emails,as_matrix=False)
-        write_txt(txtfile,features,labels)
+        write_sequences(txtfile,features,labels)
+        write_info(infofile,labelVals)
     num_labels = max(labels)+1
-    return features,labels,num_labels
+    return features,labels,label_names
 
 def evaluate_mlp_model(dataset,num_classes,extra_layers=0,num_hidden=512,dropout=0.5,graph_to=None,verbose=True):
     (X_train, Y_train), (X_test, Y_test) = dataset
     batch_size = 32
     nb_epoch = 5
+    max_features = 20000
+    maxlen = 125
     
     if verbose:
         print(len(X_train), 'train sequences')
@@ -222,11 +240,11 @@ def evaluate_mlp_model(dataset,num_classes,extra_layers=0,num_hidden=512,dropout
         print('Y_test shape:', Y_test.shape)
         print('Building model...')
     model = Sequential()
-    model.add(Dense(num_hidden, input_shape=(X_train.shape[1],)))
+    model.add(Dense(num_hidden))
     model.add(Activation('relu'))
     model.add(Dropout(dropout))
     for i in range(extra_layers):
-        model.add(Dense(num_hidden, input_shape=(X_train.shape[1],)))
+        model.add(Dense(num_hidden))
         model.add(Activation('relu'))
         model.add(Dropout(dropout))
     model.add(Dense(num_classes))
@@ -242,7 +260,7 @@ def evaluate_mlp_model(dataset,num_classes,extra_layers=0,num_hidden=512,dropout
     predictions = model.predict_classes(X_test,verbose=1 if verbose else 0)
     return predictions,score[1]
 
-def evaluate_lstm_model(dataset,num_classes):
+def evaluate_recurrent_model(dataset,num_classes):
     (X_train, Y_train), (X_test, Y_test) = dataset
     max_features = 20000
     maxlen = 125  # cut texts after this number of words (among top max_features most common words)
@@ -259,7 +277,7 @@ def evaluate_lstm_model(dataset,num_classes):
     print('Build model...')
     model = Sequential()
     model.add(Embedding(max_features, 128, input_length=maxlen))
-    model.add(GRU(400))  # try using a GRU instead, for fun
+    model.add(GRU(512))  # try using a GRU instead, for fun
     model.add(Dropout(0.5))
     model.add(Dense(num_classes))
     model.add(Activation('softmax'))
@@ -278,3 +296,63 @@ def evaluate_lstm_model(dataset,num_classes):
         print('Test accuracy:', acc)
     return score[1]
 
+def evaluate_conv_model(dataset, num_classes, maxlen=125,embedding_dims=250,max_features=5000,nb_filter=300,filter_length=3,num_hidden=250,dropout=0.25,verbose=True,pool_length=2,with_lstm=False):
+    (X_train, Y_train), (X_test, Y_test) = dataset
+    
+    batch_size = 32
+    nb_epoch = 5
+
+    if verbose:
+        print('Loading data...')
+        print(len(X_train), 'train sequences')
+        print(len(X_test), 'test sequences')
+        print('Pad sequences (samples x time)')
+    
+    X_train = sequence.pad_sequences(X_train, maxlen=maxlen)
+    X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
+
+    if verbose:
+        print('X_train shape:', X_train.shape)
+        print('X_test shape:', X_test.shape)
+        print('Build model...')
+
+    model = Sequential()
+    # we start off with an efficient embedding layer which maps
+    # our vocab indices into embedding_dims dimensions
+    model.add(Embedding(max_features, embedding_dims, input_length=maxlen))
+    model.add(Dropout(dropout))
+
+    # we add a Convolution1D, which will learn nb_filter
+    # word group filters of size filter_length:
+    model.add(Convolution1D(nb_filter=nb_filter,
+                            filter_length=filter_length,
+                            border_mode='valid',
+                            activation='relu',
+                            subsample_length=1))
+    if pool_length:
+        # we use standard max pooling (halving the output of the previous layer):
+        model.add(MaxPooling1D(pool_length=2))
+    if with_lstm:
+        model.add(LSTM(125))
+    else:
+        # We flatten the output of the conv layer,
+        # so that we can add a vanilla dense layer:
+        model.add(Flatten())
+
+        #We add a vanilla hidden layer:
+        model.add(Dense(num_hidden))
+        model.add(Activation('relu'))
+        model.add(Dropout(dropout))
+
+    # We project onto a single unit output layer, and squash it with a sigmoid:
+    model.add(Dense(num_classes))
+    model.add(Activation('softmax'))
+
+    model.compile(loss='categorical_crossentropy',optimizer='adam')
+    model.fit(X_train, Y_train, batch_size=batch_size,nb_epoch=nb_epoch, show_accuracy=True,validation_split=0.1)
+    score = model.evaluate(X_test, Y_test, batch_size=batch_size, verbose=1 if verbose else 0, show_accuracy=True)
+    if verbose:
+        print('Test score:',score[0])
+        print('Test accuracy:', score[1])
+    predictions = model.predict_classes(X_test,verbose=1 if verbose else 0)
+    return predictions,score[1]

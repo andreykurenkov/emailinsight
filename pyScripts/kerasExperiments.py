@@ -1,6 +1,8 @@
 from kerasClassify import *
 from sklearn.dummy import DummyClassifier
-from sklearn.linear_model import LinearRegression,PassiveAggressiveClassifier
+from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.svm import LinearSVC
+from sklearn.grid_search import GridSearchCV
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -101,6 +103,18 @@ def get_baseline_dummy(dataset,train_label_list,test_label_list,verbose=True):
 
     return accuracy
 
+def get_baseline_svm(dataset,train_label_list,test_label_list,verbose=True):
+    (X_train, Y_train), (X_test, Y_test) = dataset
+    linear = LinearSVC(penalty='l1',dual=False)
+    grid_linear = GridSearchCV(linear, {'C':[0.1, 0.5, 1, 5, 10]})
+    grid_linear.fit(X_train,train_label_list)
+    accuracy = grid_linear.score(X_test, test_label_list)
+    
+    if verbose:
+        print('Got baseline of %f with svm classifier'%accuracy)
+
+    return accuracy
+
 def get_baseline_knn(dataset,train_label_list,test_label_list,verbose=True):
     (X_train, Y_train), (X_test, Y_test) = dataset
     knn = KNeighborsClassifier(n_neighbors=100,n_jobs=-1)
@@ -113,7 +127,7 @@ def get_baseline_knn(dataset,train_label_list,test_label_list,verbose=True):
 
     return accuracy
 
-def get_baseline_PA(dataset,train_label_list,test_label_list,verbose=True):
+def get_baseline_pa(dataset,train_label_list,test_label_list,verbose=True):
     (X_train, Y_train), (X_test, Y_test) = dataset
     classifier = PassiveAggressiveClassifier(n_jobs=-1,fit_intercept=True)
     classifier.fit(X_train,train_label_list)
@@ -268,8 +282,10 @@ def test_select_words(num_hidden=512):
 #test_select_words(32)
 #test_select_words(16)
 #run_once(num_words=10000,dropout=0.5,num_hidden=512, extra_layers=0,plot=True,verbose=True,select_best=4000)
-features,labels,feature_names,label_names = get_keras_data(num_words=10000,matrix_type='binary',verbose=True)
+features,labels,feature_names,label_names = get_ngram_data(num_words=10000,matrix_type='tfidf',verbose=True,max_n=1)
+#features,labels,label_names = get_sequence_data()
 num_labels = len(label_names)
 dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=0.1)
-dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
-baseline = get_baseline_PA(dataset,train_label_list,test_label_list,verbose=True) 
+#dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
+baseline = get_baseline_svm(dataset,train_label_list,test_label_list,verbose=True) 
+#predictions,acc = evaluate_conv_model(dataset,num_labels,num_hidden=512,verbose=True,with_lstm=True)
