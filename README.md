@@ -1,2 +1,4 @@
 # emailinsight
 Just a place to store my scripts/code for tinkering with email data. Eventually may make it into more of a visualization/insight tool.
+
+If you want to use this as the starting point for your own experimentation with emails, the files that have most of the logic are kerasClassify.py and kerasExperiment.py. The former has functions related to creating the dataset and the classifiers, and the later has functions for running tests and reporting results. There is no public dataset to try this with, since I used my own gmail archive when developing this, but you can export your own emails and try this with them. The get_emails function in kerasClassify is hard coded to just look in the current directory, but you can modify it as needed - in general, the code is for you to use an inspiration but is not really more than a collection of scripts I wrote up.
