@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import time
 import pprint
-import cPickle
+import pickle
 
 from keras.callbacks import RemoteMonitor
 from keras.preprocessing import sequence
@@ -13,10 +13,10 @@ from keras.optimizers import SGD, Adam, RMSprop
 from keras.preprocessing.text import Tokenizer
 from keras.layers.embeddings import Embedding
 from keras.utils import np_utils
-from mboxConvert import parseEmails,getEmailStats,mboxToBinaryCSV
+from mboxConvert import parseEmails,parseEmailsCSV,getEmailStats,mboxToBinaryCSV
 from kerasPlotter import Plotter
 from keras.layers.embeddings import Embedding
-from keras.layers.convolutional import Convolution1D, MaxPooling1D
+from keras.layers.convolutional import Conv1D, MaxPooling1D
 from keras.layers.recurrent import LSTM,GRU
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
@@ -98,8 +98,8 @@ def read_csv(csvfile,verbose=True):
         print('Read CSV with columns %s'%str(dataframe.columns))
     dataframe.drop(u'label',inplace=True,axis=1)
     if u'Unnamed: 0' in dataframe.columns:
-        dataframe.drop(u'Unnamed: 0',inplace=True,axis=1)
-    feature_matrix = dataframe.as_matrix()
+        dataframe.drop(u'Unnamed: 0',inplace=True,axis=1)    
+    feature_matrix = dataframe.values
     feature_names = dataframe.columns
     return feature_matrix,labels,feature_names
 
@@ -170,18 +170,19 @@ def make_dataset(features,labels,num_labels,test_split=0.1,nb_words=1000):
     Y_test_c = np_utils.to_categorical(Y_test, num_labels)
     return ((X_train,Y_train_c),(X_test,Y_test_c)),Y_train,Y_test
 
-def get_emails(verbose=True):
+def get_emails(emailsFilePath,verbose=True):
     picklefile = 'pickled_emails.pickle'
     if os.path.isfile(picklefile):
         with open(picklefile,'r') as load_from:
-            emails = cPickle.load(load_from)
+            emails = pickle.load(load_from)
     else:
-        emails = parseEmails('.',printInfo=verbose)
-        with open(picklefile,'w') as store_to:
-            cPickle.dump(emails,store_to)
+        # emails = parseEmails('.',printInfo=verbose)
+        emails = parseEmailsCSV(emailsFilePath)
+        with open(picklefile,'wb') as store_to:
+            pickle.dump(emails,store_to)
     return emails
 
-def get_ngram_data(num_words=1000,matrix_type='binary',verbose=True,max_n=1):
+def get_ngram_data(emailsFilePath, num_words=1000,matrix_type='binary',verbose=True,max_n=1):
     #yeah yeah these can be separate functions, but lets just bundle it all up
     csvfile = 'keras_data_%d_%s.csv'%(num_words,str(matrix_type))
     infofile = 'data_info.txt'
@@ -189,7 +190,7 @@ def get_ngram_data(num_words=1000,matrix_type='binary',verbose=True,max_n=1):
         features,labels,feature_names = read_csv(csvfile,verbose=verbose)
         label_names = read_info(infofile)
     else:
-        emails = get_emails(verbose=verbose)
+        emails = get_emails(emailsFilePath, verbose=verbose)
         features,labels,feature_names,label_names = get_word_features(emails,nb_words=num_words,matrix_type=matrix_type,verbose=verbose,max_n=max_n)
         if max_n==1:
             write_csv(csvfile,features,labels,feature_names,verbose=verbose)
@@ -324,14 +325,10 @@ def evaluate_conv_model(dataset, num_classes, maxlen=125,embedding_dims=250,max_
 
     # we add a Convolution1D, which will learn nb_filter
     # word group filters of size filter_length:
-    model.add(Convolution1D(nb_filter=nb_filter,
-                            filter_length=filter_length,
-                            border_mode='valid',
-                            activation='relu',
-                            subsample_length=1))
+    model.add(Conv1D(activation="relu", filters=nb_filter, kernel_size=filter_length, strides=1, padding="valid"))
     if pool_length:
         # we use standard max pooling (halving the output of the previous layer):
-        model.add(MaxPooling1D(pool_length=2))
+        model.add(MaxPooling1D(pool_size=2))
     if with_lstm:
         model.add(LSTM(125))
     else:

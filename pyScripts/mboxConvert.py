@@ -1,6 +1,8 @@
 import mailbox
 import os
 import re
+import csv
+import dateutil.parser
 
 class parsedEmail():
 
@@ -33,6 +35,46 @@ def addToCountDict(word,countDict):
     else:
         countDict[word]=1
 
+# Parse CSV (Ex: Enron emails from mongo) that have different (but similar) set of attributes
+def parseEmailsCSV(csvEmailsFilePath,printInfo=True):
+    emails = []
+    with open(csvEmailsFilePath) as tsvfile:
+        reader = csv.DictReader(tsvfile, dialect='excel-tab')
+        count = 0;
+        for row in reader:
+            category =row['folderName']
+            subject = row['subject']
+            body = row['body']            
+            sender = row['from']
+            fromDomain = row['fromDomain']
+            try:
+                date = dateutil.parser.parse(row['date'])
+            except:
+                print('except: row[date]='%str(row['date']))
+            if date is None:
+                continue
+            dateParts = [date.day,date,date.month,date.year,date.hour]                
+            count+=1
+            # dict of <word,count>
+            splitted  = body.split(" ")
+            messageWords = list(filter(None,splitted))
+            wordCount = {}
+            for word in messageWords:
+                if word=='-----Original Message-----':
+                    break
+                if len(word)==0 or '\r' in word or '=' in word \
+                   or '#' in word or '&' in word or word[0].isupper():
+                    continue
+                word = re.sub('[|;\"\'\>\<\'\)\(,.?!\n]','',word)
+                if len(word)>3:
+                    addToCountDict(word,wordCount)
+            email = parsedEmail(category,subject,sender,fromDomain,\
+                                    dateParts,body,wordCount)
+            emails.append(email)
+            if printInfo:
+                print ('Parsed %d emails\n'%count)
+    return emails
+
 def parseEmails(folder,printInfo=True):
     files = os.listdir(folder)
     emails = []
@@ -43,66 +85,65 @@ def parseEmails(folder,printInfo=True):
             box = mailbox.mbox(folder+'/'+aFile)
             count = 0
             if printInfo:
-                print 'Parsing %s'%aFile
+                print ('Parsing %s'%aFile)
             for message in box:
-		if message['X-Gmail-Labels'] is None:
-		    continue
-	        labels = message['X-Gmail-Labels'].split(',')
-		if 'Chat' in labels:
-		    continue
-	        if len(labels)>1 and 'Important' in labels:
-	            labels.remove('Important')
-	        if len(labels)>1 and 'Sent' in labels:
-	            labels.remove('Sent')
-	        if len(labels)>1 and 'Financial' in labels:
-	            labels.remove('Financial')
-	        if len(labels)>1 and 'Starred' in labels:
-	            labels.remove('Starred')
+                if message['X-Gmail-Labels'] is None:
+                    continue		      
+                labels = message['X-Gmail-Labels'].split(',')
+                if 'Chat' in labels:
+                    continue
+                if len(labels)>1 and 'Important' in labels:
+        	            labels.remove('Important')
+                if len(labels)>1 and 'Sent' in labels:
+        	            labels.remove('Sent')
+                if len(labels)>1 and 'Financial' in labels:
+        	            labels.remove('Financial')
+                if len(labels)>1 and 'Starred' in labels:
+        	            labels.remove('Starred')
                 category = labels[0]
                 subject = message['subject']
-		try:
-                    sender = re.sub('[\-=|;\"\>\<\'\)\(,.?!\n\r\t]','',message['from'])
-		except:
-		    continue
-                if '@' not in message['from']:
-                    continue
-                senderDomain = sender[sender.index('@'):]
-                
-                date = message['Date']
-		if date is None:
-		    continue
-                dateParts = date.split(" ")
-                dateParts[0] = dateParts[0][:-1]
-                dateParts[4] = dateParts[4][:2]
-                
-                payload = message.get_payload()
-                if message.is_multipart():
-                    messageContent = payload[0].as_string()
-                else:
-                    messageContent = payload
-                messageContent = cleanEmail(messageContent)
-                if len(messageContent)>10000:
-                    continue
-
-                messageWords = messageContent.split(" ")
-                
-                wordCount = {}
-                for word in messageWords:
-                    if word=='-----Original Message-----':
-                        break
-                    if len(word)==0 or '\r' in word or '=' in word \
-                       or '#' in word or '&' in word or word[0].isupper():
+                try:
+                  sender = re.sub('[\-=|;\"\>\<\'\)\(,.?!\n\r\t]','',message['from'])
+                except:
+                    if '@' not in message['from']:
                         continue
-                    word = re.sub('[|;\"\'\>\<\'\)\(,.?!\n]','',word)
-                    if len(word)>3:
-                        addToCountDict(word,wordCount)
-	        count+=1
-                email = parsedEmail(category,subject,sender,senderDomain,\
-                                        dateParts,messageContent,wordCount)
-                emails.append(email)
-            if printInfo:
-                print 'Parsed %d emails\n'%count
-    return emails
+                    senderDomain = sender[sender.index('@'):]
+                    
+                    date = message['Date']
+                    if date is None:
+                        continue
+                        dateParts = date.split(" ")
+                        dateParts[0] = dateParts[0][:-1]
+                        dateParts[4] = dateParts[4][:2]
+                        
+                        payload = message.get_payload()
+                        if message.is_multipart():
+                            messageContent = payload[0].as_string()
+                        else:
+                            messageContent = payload
+                        messageContent = cleanEmail(messageContent)
+                        if len(messageContent)>10000:
+                            continue
+        
+                        messageWords = messageContent.split(" ")
+                        
+                        wordCount = {}
+                        for word in messageWords:
+                            if word=='-----Original Message-----':
+                                break
+                            if len(word)==0 or '\r' in word or '=' in word \
+                               or '#' in word or '&' in word or word[0].isupper():
+                                continue
+                            word = re.sub('[|;\"\'\>\<\'\)\(,.?!\n]','',word)
+                            if len(word)>3:
+                                addToCountDict(word,wordCount)
+                        count+=1
+                        email = parsedEmail(category,subject,sender,senderDomain,\
+                                                dateParts,messageContent,wordCount)
+                        emails.append(email)
+                    if printInfo:
+                        print ('Parsed %d emails\n'%count)
+            return emails
 
 def getEmailStats(emails):
     fromCount = {}
@@ -131,7 +172,7 @@ def getTopEmailCounts(emails,percentThresh=0.25,numWords=50,numSenders=20,numDom
     (totalWordsCount,fromCount,domainCount,labels) = getEmailStats(emails)
     topWords = set([])
     if perLabel:
-	for label in labels:
+       for label in labels:
             labelWords = totalWordsCount[label]
             topWordsDict = {}
             for word in labelWords:
@@ -142,13 +183,13 @@ def getTopEmailCounts(emails,percentThresh=0.25,numWords=50,numSenders=20,numDom
                 topWords.add(sortedWords[i])
     else:
         for label in labels:
-	    del totalWordsCount[label]
-        sortedWords = sorted(totalWordsCount,key=totalWordsCount.get,reverse=True)
-	topWords = sortedWords[:numWords*len(labels)]
+            del totalWordsCount[label]
+            sortedWords = sorted(totalWordsCount,key=totalWordsCount.get,reverse=True)
+    topWords = sortedWords[:numWords*len(labels)]
 
     sortedSenders = sorted(fromCount,key=fromCount.get,reverse=True)
     sortedDomains = sorted(domainCount,key=domainCount.get,reverse=True)
-    print '%d words found.'%len(totalWordsCount)
+    print ('%d words found.'%len(totalWordsCount))
 
     topSenders = sortedSenders[:numSenders]
     topDomains = sortedDomains if len(sortedDomains)<=numDomains else sortedDomains[:numDomains]
@@ -175,8 +216,8 @@ def mboxToBinaryCSV(folder,csvfile='data.csv',perLabel=True):
             outputFile.write('1, ' if email.fromDomain==domain else '0,')
         for word in topWords:
             outputFile.write('1, ' if word in email.words else '0,')
-	if email.label not in labelMap:
-	    labelMap[email.label] = len(labelMap.keys())
+        if email.label not in labelMap:
+            labelMap[email.label] = len(labelMap.keys())
         outputFile.write(str(labelMap[email.label])+'\n')
     outputFile.close()
     outputInfoFile = open(os.path.join(folder,csvfile+' info.txt'),'w')
@@ -207,7 +248,3 @@ def mboxToCSV(folder, name='email.csv', limitSenders=True, limitDomains=True,per
             outputFile.write('Yes,' if word in email.words else 'No,')
         outputFile.write(email.label+'\n')
     outFile.close()
-
-if __name__=='__main__':
-    folder = "."
-    mboxToCSV(folder,'limitedEmails.csv')
