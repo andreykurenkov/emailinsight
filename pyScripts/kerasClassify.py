@@ -301,7 +301,7 @@ def evaluate_conv_model(dataset, num_classes, maxlen=125,embedding_dims=250,max_
     (X_train, Y_train), (X_test, Y_test) = dataset
     
     batch_size = 32
-    nb_epoch = 5
+    nb_epoch = 7
 
     if verbose:
         print('Loading data...')
@@ -345,9 +345,9 @@ def evaluate_conv_model(dataset, num_classes, maxlen=125,embedding_dims=250,max_
     model.add(Dense(num_classes))
     model.add(Activation('softmax'))
 
-    model.compile(loss='categorical_crossentropy',optimizer='adam')
-    model.fit(X_train, Y_train, batch_size=batch_size,nb_epoch=nb_epoch, show_accuracy=True,validation_split=0.1)
-    score = model.evaluate(X_test, Y_test, batch_size=batch_size, verbose=1 if verbose else 0, show_accuracy=True)
+    model.compile(loss='categorical_crossentropy',optimizer='adam',  metrics=['accuracy'])
+    model.fit(X_train, Y_train, batch_size=batch_size,epochs=nb_epoch, validation_split=0.1)
+    score = model.evaluate(X_test, Y_test, batch_size=batch_size, verbose=1 if verbose else 0)
     if verbose:
         print('Test score:',score[0])
         print('Test accuracy:', score[1])

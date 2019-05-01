@@ -145,7 +145,7 @@ def get_baseline_pa(dataset,train_label_list,test_label_list,verbose=True):
     return accuracy
 
 def run_once(verbose=True,test_split=0.1,ftype='binary',num_words=10000,select_best=4000,num_hidden=512,dropout=0.5, plot=True,plot_prefix='',graph_to=None,extra_layers=0):
-    features,labels,feature_names,label_names = get_keras_data(num_words=num_words,matrix_type=ftype,verbose=verbose)
+    features,labels,feature_names,label_names = get_ngram_data(num_words=num_words,matrix_type=ftype,verbose=verbose)
     num_labels = len(label_names)
     dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=test_split)
     if select_best and select_best<num_words:
@@ -292,7 +292,12 @@ features,labels,feature_names,label_names = get_ngram_data(emailsFilePath=csvEma
 #features,labels,label_names = get_sequence_data()
 num_labels = len(label_names)
 dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=0.1)
-#dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
 
+# Feature selection (best 4000 features)
+dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
+
+# Unrem for baseline svm 
 baseline = get_baseline_svm(dataset,train_label_list,test_label_list,verbose=True) 
-#predictions,acc = evaluate_conv_model(dataset,num_labels,num_hidden=512,verbose=True,with_lstm=True)
+
+# Unrem for keras 
+# predictions,acc = evaluate_conv_model(dataset,num_labels,num_hidden=512,verbose=True,with_lstm=True)
