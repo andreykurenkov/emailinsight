@@ -173,7 +173,7 @@ def make_dataset(features,labels,num_labels,test_split=0.1,nb_words=1000):
 def get_emails(emailsFilePath,verbose=True):
     picklefile = 'pickled_emails.pickle'
     if os.path.isfile(picklefile):
-        with open(picklefile,'r') as load_from:
+        with open(picklefile,'rb') as load_from:
             emails = pickle.load(load_from)
     else:
         # emails = parseEmails('.',printInfo=verbose)
@@ -228,10 +228,8 @@ def get_sequence_data():
 def evaluate_mlp_model(dataset,num_classes,extra_layers=0,num_hidden=512,dropout=0.5,graph_to=None,verbose=True):
     (X_train, Y_train), (X_test, Y_test) = dataset
     batch_size = 32
-    nb_epoch = 5
-    max_features = 20000
-    maxlen = 125
-    
+    nb_epoch = 7
+            
     if verbose:
         print(len(X_train), 'train sequences')
         print(len(X_test), 'test sequences')
@@ -250,11 +248,11 @@ def evaluate_mlp_model(dataset,num_classes,extra_layers=0,num_hidden=512,dropout
         model.add(Dropout(dropout))
     model.add(Dense(num_classes))
     model.add(Activation('softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam')
+    model.compile(loss='categorical_crossentropy', optimizer='adam',  metrics=['accuracy'])
     plotter = Plotter(save_to_filepath=graph_to, show_plot_window=True)
     callbacks = [plotter] if graph_to else []
-    history = model.fit(X_train, Y_train, nb_epoch=nb_epoch, batch_size=batch_size, verbose=1 if verbose else 0, show_accuracy=True, validation_split=0.1,callbacks=callbacks)
-    score = model.evaluate(X_test, Y_test, batch_size=batch_size, verbose=1 if verbose else 0, show_accuracy=True)
+    history = model.fit(X_train, Y_train, epochs=nb_epoch, batch_size=batch_size, verbose=1 if verbose else 0, validation_split=0.1,callbacks=callbacks)
+    score = model.evaluate(X_test, Y_test, batch_size=batch_size, verbose=1 if verbose else 0)
     if verbose:
         print('Test score:',score[0])
         print('Test accuracy:', score[1])

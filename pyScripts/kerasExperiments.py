@@ -144,8 +144,8 @@ def get_baseline_pa(dataset,train_label_list,test_label_list,verbose=True):
 
     return accuracy
 
-def run_once(verbose=True,test_split=0.1,ftype='binary',num_words=10000,select_best=4000,num_hidden=512,dropout=0.5, plot=True,plot_prefix='',graph_to=None,extra_layers=0):
-    features,labels,feature_names,label_names = get_ngram_data(num_words=num_words,matrix_type=ftype,verbose=verbose)
+def run_once(verbose=True,test_split=0.1,ftype='binary',num_words=10000,select_best=4000,num_hidden=512,dropout=0.5, plot=True,plot_prefix='',graph_to=None,extra_layers=0):    
+    features,labels,feature_names,label_names = get_ngram_data(emailsFilePath=csvEmailsFilePath, num_words=num_words,matrix_type=ftype,verbose=verbose)
     num_labels = len(label_names)
     dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=test_split)
     if select_best and select_best<num_words:
@@ -282,22 +282,31 @@ def test_select_words(num_hidden=512):
     make_plots(all_counts,all_times,['Words=%d'%w for w in word_counts],title='Time vs ratio of words kept',y_name='Parse+test+train time (seconds)',x_name='Ratio of best words kept',save_to='select_times_%d.png'%num_hidden,y_bounds=(0,65))
     print('\nBest word accuracy %f with select %f\n'%(maxacc,maxs))
 
+
+# ------- Experiments -----------------------------
+# True to run feature extraction, selection + svm baseline (~ 0.78)
+    
+run_baseline = False
 #test_features_words()
 #test_hidden_dropout()
 #test_select_words(128)
 #test_select_words(32)
 #test_select_words(16)
-#run_once(num_words=10000,dropout=0.5,num_hidden=512, extra_layers=0,plot=True,verbose=True,select_best=4000)
-features,labels,feature_names,label_names = get_ngram_data(emailsFilePath=csvEmailsFilePath,num_words=5000,matrix_type='tfidf',verbose=True,max_n=1)
-#features,labels,label_names = get_sequence_data()
-num_labels = len(label_names)
-dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=0.1)
 
-# Feature selection (best 4000 features)
-dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
+# TODO: try ftype = 'tfidf'
+run_once(num_words=10000,dropout=0.5,num_hidden=512, extra_layers=0,plot=True,verbose=True,select_best=4000)
 
-# Unrem for baseline svm 
-baseline = get_baseline_svm(dataset,train_label_list,test_label_list,verbose=True) 
-
-# Unrem for keras 
-# predictions,acc = evaluate_conv_model(dataset,num_labels,num_hidden=512,verbose=True,with_lstm=True)
+if (run_baseline):
+    features,labels,feature_names,label_names = get_ngram_data(emailsFilePath=csvEmailsFilePath,num_words=5000,matrix_type='tfidf',verbose=True,max_n=1)
+    #features,labels,label_names = get_sequence_data()
+    num_labels = len(label_names)
+    dataset,train_label_list,test_label_list = make_dataset(features,labels,num_labels,test_split=0.1)
+    
+    # Feature selection (best 4000 features)
+    dataset,scores = select_best_features(dataset,train_label_list,4000,verbose=True)
+    
+    # Unrem for baseline svm 
+    baseline = get_baseline_svm(dataset,train_label_list,test_label_list,verbose=True) 
+    
+    # Unrem for convnet (not very good at intial tests)
+    # predictions,acc = evaluate_conv_model(dataset,num_labels,num_hidden=512,verbose=True,with_lstm=True)
