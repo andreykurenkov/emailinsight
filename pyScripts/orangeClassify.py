@@ -13,8 +13,8 @@ def testSuccess(classifier,test,classifications=None):
         classifications = {}
         for label in test.domain.class_var.values:
             for label2 in test.domain.class_var.values:
-				if (str(label),str(label2)) not in classifications:
-				    classifications[(str(label),str(label2))] = 0
+                if (str(label),str(label2)) not in classifications:
+                    classifications[(str(label),str(label2))] = 0
     correct = 0
     wrong = 0
     for example in test:
@@ -36,7 +36,7 @@ def runTest(train,test,learner,totalClassifications=None,writeConfusion=False):
     start = datetime.datetime.today()
     classifier = learner(train)
     end = datetime.datetime.today()
-    print 'Start time %s, End time %s, Dif %s'%(str(start),str(end),str(end-start))
+    print ('Start time %s, End time %s, Dif %s'%(str(start),str(end),str(end-start)))
     resultTrain=testSuccess(classifier,train,totalClassifications)
     resultTest=testSuccess(classifier,test,totalClassifications)
     if writeConfusion:
@@ -55,10 +55,10 @@ def kFoldCrossValidation(data, learner, returnBest=False, folds=10):
     for fold in range(folds):
         train = data.select_ref(indices, fold, negate = 1)
         test  = data.select_ref(indices, fold)
-        print "Fold %d" % fold
+        print ("Fold %d" % fold)
         resultTrain,resultTest,classifier=runTest(train,test,learner,totalClassifications)
         if resultTest == 'Error':
-            print 'Error testing fold, skipping'
+            print ('Error testing fold, skipping')
             folds=folds-1
         else:
             (correct,wrong,classifications)=resultTrain
@@ -70,18 +70,18 @@ def kFoldCrossValidation(data, learner, returnBest=False, folds=10):
                 best[0]=successTest
             totalSuccessTest+=successTest
             totalSuccessTrain+=successTrain
-            print 'Success train %f, test %f\n'%(successTrain,successTest)
+            print ('Success train %f, test %f\n'%(successTrain,successTest))
     writeConfusionToFile(classifications,test,'Confusion of %s.csv'%learner.name)
     averageSuccessTest = totalSuccessTest/folds
     averageSuccessTrain = totalSuccessTrain/folds
-    print 'Average success train %f, test %f'%(averageSuccessTrain,averageSuccessTest)
-    print '----------------------------------------------------------'
+    print ('Average success train %f, test %f'%(averageSuccessTrain,averageSuccessTest))
+    print ('----------------------------------------------------------')
     if returnBest:
         return (best[1],averageSuccess)
     return (averageSuccessTrain,averageSuccessTest)
     
 def testTreeLearning(data,test=None,getBest=False, folds=10,writeConfusion=False,**kw):
-    print 'Starting Decision Tree learning'
+    print ('Starting Decision Tree learning')
     tree = Orange.classification.tree.TreeLearner(name='Tree',**kw)
     if test is not None:
         (resultTrain, resultTest,classifier)  = runTest(data,test,tree,writeConfusion=writeConfusion)
@@ -89,7 +89,7 @@ def testTreeLearning(data,test=None,getBest=False, folds=10,writeConfusion=False
     return kFoldCrossValidation(data,tree,returnBest=getBest, folds=folds)
     
 def testNeuralNetLearning(data,test=None,getBest=False, folds=10,writeConfusion=False,**kw):
-    print 'Starting NeuralNet learning'
+    print ('Starting NeuralNet learning')
     net = Orange.classification.neural.NeuralNetworkLearner(name="Net",**kw)
     if test is not None:
         (resultTrain, resultTest,classifier) = runTest(data,test,net,writeConfusion=writeConfusion)
@@ -97,7 +97,7 @@ def testNeuralNetLearning(data,test=None,getBest=False, folds=10,writeConfusion=
     return kFoldCrossValidation(data,net,returnBest=getBest, folds=folds)
     
 def testKNNLearning(data,test=None,getBest=False, folds=10, k=10,writeConfusion=False):
-    print 'Starting kNN learning'
+    print ('Starting kNN learning')
     knnLearner = Orange.classification.knn.kNNLearner(name='KNN',k=k)
     if test is not None:
         (resultTrain, resultTest,classifier) = runTest(data,test,knnLearner,writeConfusion=writeConfusion)
@@ -105,7 +105,7 @@ def testKNNLearning(data,test=None,getBest=False, folds=10, k=10,writeConfusion=
     return kFoldCrossValidation(data,knnLearner,returnBest=getBest, folds=folds)
     
 def testSVMLearning(data,test=None,getBest=False, folds=10,writeConfusion=False, **kw):
-    print 'Starting SVM learning'
+    print ('Starting SVM learning')
     svmLearner = Orange.classification.svm.SVMLearner(name='svm',**kw)
     if test is not None:
         (resultTrain, resultTest,classifier) = runTest(data,test,svmLearner,writeConfusion=writeConfusion)
@@ -113,7 +113,7 @@ def testSVMLearning(data,test=None,getBest=False, folds=10,writeConfusion=False,
     return kFoldCrossValidation(data,svmLearner,returnBest=getBest, folds=folds)
 
 def testBoostLearning(data,learner, test=None,getBest=False, folds=10, t=10,writeConfusion=False):
-    print 'Starting Boost learning'
+    print ('Starting Boost learning')
     boostLearner = Orange.ensemble.boosting.BoostedLearner(learner,name='Boost',t=t)
     if test is not None:
         (resultTrain, resultTest,classifier)  = runTest(data,test,boostLearner,writeConfusion=writeConfusion)
