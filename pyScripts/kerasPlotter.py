@@ -6,7 +6,7 @@ import time, json
 from collections import deque
 
 from keras.callbacks import History
-from plotting_utils import PlotGenerator
+from kerasPlottingUtils import PlotGenerator
 
 #modified from https://github.com/aleju/keras
 class Plotter(History):
