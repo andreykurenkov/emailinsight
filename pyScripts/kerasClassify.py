@@ -176,7 +176,9 @@ def get_emails(emailsFilePath,verbose=True):
         with open(picklefile,'rb') as load_from:
             emails = pickle.load(load_from)
     else:
+        # Uncomment to parse .mbox exported from Gmail
         # emails = parseEmails('.',printInfo=verbose)
+        # Uncomment to parse CSV 
         emails = parseEmailsCSV(emailsFilePath)
         with open(picklefile,'wb') as store_to:
             pickle.dump(emails,store_to)

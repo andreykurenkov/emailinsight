@@ -36,6 +36,15 @@ def addToCountDict(word,countDict):
         countDict[word]=1
 
 # Parse CSV (Ex: Enron emails from mongo) that have different (but similar) set of attributes
+# Format: Tabbed delimited .tsv with folderName	updateId	subject	body	from	fromDomain	to	cc	date). fold
+# folderName- category / class 
+# updateId - String - not used in classfication 
+# subject - String - email subject  
+# body - String - email body 
+# from - String - displayName + emailAddress of sender (can experiment with only emailAddress or only displayName)        
+# fromDomain - String email domain of sender (enron.com)
+# to,cc - String - contactination of email to (see from field above)        
+# date - ISO format date  ex: 1999-12-13T11:33:00+00:00   
 def parseEmailsCSV(csvEmailsFilePath,printInfo=True):
     emails = []
     with open(csvEmailsFilePath) as tsvfile:
