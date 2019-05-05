@@ -58,8 +58,12 @@ def get_word_features(emails,verbose=True,nb_words=5000,skip_top=0,maxlen=None,a
     for email in emails:
         if email.label not in labels:
             continue
-        text = email.sender+" "+str(email.subject)
+        text = email.sender+" "+str(email.subject) + " "
         text+= email.fromDomain
+        if email.to != None:
+            text+= email.to + " "
+        if email.cc != None:
+            text+= email.cc + " "
         text+=email.content
         texts.append(text.replace('\n','').replace('\r',''))
         emailLabels.append(labelNums[email.label])
