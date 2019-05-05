@@ -6,11 +6,13 @@ import dateutil.parser
 
 class parsedEmail():
 
-    def __init__(self,label,subject,sender,fromDomain,timeRec,content,words=None):
+    def __init__(self,label,subject,sender,fromDomain,timeRec,content,words=None, to=None,cc=None):
         self.label = label
         self.subject = subject
         self.sender = sender
         self.fromDomain = fromDomain
+        self.to = to
+        self.cc = cc
         self.day = timeRec[0]
         self.date = timeRec[1]
         self.month = timeRec[2]
@@ -78,7 +80,7 @@ def parseEmailsCSV(csvEmailsFilePath,printInfo=True):
                 if len(word)>3:
                     addToCountDict(word,wordCount)
             email = parsedEmail(category,subject,sender,fromDomain,\
-                                    dateParts,body,wordCount)
+                                    dateParts,body,wordCount, to=row['to'], cc=row['cc'])
             emails.append(email)
             if printInfo:
                 print ('Parsed %d emails\n'%count)
