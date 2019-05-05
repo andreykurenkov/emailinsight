@@ -13,7 +13,7 @@ import numpy as np
 import time
 
 # Dataset tsv file path. Each line is an email
-csvEmailsFilePath = "./data/classify/enron_6_email_folders_KAMINSKI.tsv";
+csvEmailsFilePath = "./data/enron_6_email_folders_KAMINSKI.tsv";
 
 
 
